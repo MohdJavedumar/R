@@ -1,0 +1,263 @@
+---
+title: 'Modern Computational Statistical Methods'
+author: 'Mohd Javed'
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE,warning = FALSE,message = FALSE,dpi = 180,fig.width = 8,fig.height = 5)
+```
+
+
+
+
+
+```{r}
+
+library(magrittr)
+library(dplyr)
+
+```
+
+
+```{r}
+load("breast.Rdata")
+```
+
+
+#### In this report, we consider breast cancer prediction where the label, or outcome variable diagnosis has been coded as “M” in case of malignant lumps and “B” in case of benign lumps. 
+#### A popular dataset in this context is called the Wisconsin Breast Cancer Dataset and is based on clinical data released in the early 1990’s. The feature vector x is composed of continuous variables such as radius mean, texture mean, etc., each potentially affecting the probability of malignancy. We use the 80-20 splitting strategy where we split it randomly between training data and testing data. We want to build a prediction model to predict malignant lumps based on main important features.
+
+
+The logistic regression model for predicting malignant lumps based on the important features can be written as:
+
+logit(P(diagnosis = "M"|x)) = β0 + β1x1 + β2x2 + ... + βp*xp
+
+where P(diagnosis = "M"|x) is the probability of the diagnosis being malignant given the feature vector x, β0 is the intercept, β1 to βp are the coefficients of the corresponding features x1 to xp, and logit() is the natural logarithm of the odds ratio. The model assumes a linear relationship between the log-odds of the probability of malignancy and the features. 
+
+
+
+## response variable = Diagnosis
+## family =Binomial
+### mod<-glm(diagnosis~.,data=train,family=binomial)
+
+
+
+
+
+
+
+```{r}
+train<-Breast$train
+test<-Breast$test
+
+plot(train$diagnosis, main="Diagnosis Distribution",xlab="Diagnosis",ylab="Count")
+
+
+```
+### Primary logistic model 
+```{r}
+trainset<-train
+
+require(caret)
+
+
+
+mod<-glm(diagnosis~.,family = binomial(),trainset)
+summary(mod)
+```
+
+#### Confusion matrix for the train set of your classifier using a threshold of 0.5 and  the accuracy of the model for the train set.
+
+
+```{r}
+# predicting with trained model on test data
+predictions <- mod %>% predict(trainset)
+#
+predict_bin<-ifelse(predictions<=.5,0,1)
+predict_bin<-as.numeric(predict_bin)
+
+#factor to Numeric
+diagnosis_bin<-ifelse(trainset$diagnosis=="B",0,1)
+# Model accuracy
+mean(predict_bin==diagnosis_bin)
+
+#Confusion matrix
+table(predict_bin,trainset$diagnosis)
+```
+#### The confusion matrix for the test set of your classifier using a threshold of 0.5 and the accuracy of the model for the test set.
+
+
+```{r}
+testset<-test
+library(magrittr)
+predictions <- mod %>% predict(testset)
+#
+predict_bin<-ifelse(predictions<=.5,0,1)
+predict_bin_l<-as.numeric(predict_bin)
+
+#factor to Numeric
+diagnosis_bin_l<-ifelse(testset$diagnosis=="B",0,1)
+# Model accuracy
+mean(predict_bin_l==diagnosis_bin_l)
+
+#Confusion matrix
+table(predict_bin_l,testset$diagnosis)
+```
+
+### Why the accuracy for the test set is lower than the one for the training set ? 
+
+#### Due to overfitting the accuracy for the test set is lower than the one for the training set.
+
+```{r}
+
+library(glmnet)
+
+```
+
+
+
+#### Now we want to get a parsimonious model, meaning that we want to keep the most relevant features. One way to tackle this challenge is to run a penalized regression model.
+
+
+```{r}
+trainset<-na.omit(trainset)
+x <- as.matrix(trainset[,2:31])
+trainset$diagnosis_bin<-ifelse(trainset$diagnosis=="B",0,1)
+y <- as.matrix(trainset[,32])
+# fit model
+library(glmnet)
+fit <- glmnet(x, y, family="binomial", alpha=0, lambda=0)
+# summarize the fit
+summary(fit)
+# make predictions
+predictions_p <- predict(fit, x, type="response")
+predict_bin<-ifelse(predictions_p<=.5,0,1)
+predict_bin<-as.numeric(predict_bin)
+#factor to Numeric
+diagnosis_bin<-ifelse(trainset$diagnosis=="B",0,1)
+# Model accuracy
+mean(predict_bin==diagnosis_bin)
+
+#Confusion matrix
+table(predict_bin,trainset$diagnosis)
+
+```
+
+
+
+#### we have many correleted features we want to reduce the number of features to achieve minimum model complexity and time. Hence we will select Lasso regression.
+
+
+
+
+
+```{r}
+lambdas <- 10^seq(2, -3, by = -.1)
+library(glmnet)
+
+# Setting alpha = 1 implements lasso regression
+lasso_reg <- cv.glmnet(x, y, alpha = 1, lambda = lambdas, standardize = FALSE, nfolds = 5)
+
+# Best 
+lambda_best <- lasso_reg$lambda.min 
+lambda_best
+
+
+
+
+```
+
+
+```{r}
+lasso_model <- glmnet(x, y, alpha = 1, lambda = lambda_best, standardize = FALSE)
+
+predictions_train <- predict(lasso_model, s = lambda_best, newx = x)
+
+
+predict_bin<-ifelse(predictions_train<=.5,0,1)
+predict_bin<-as.numeric(predict_bin)
+#factor to Numeric
+diagnosis_bin<-ifelse(trainset$diagnosis=="B",0,1)
+# Model accuracy
+mean(predict_bin==diagnosis_bin)
+
+#Confusion matrix
+table(predict_bin,trainset$diagnosis)
+
+
+```
+
+
+#### 18 instance are incorrectly classified, in which 16 are false positive and 2 are false negative.
+
+
+
+
+
+
+#### The penalized logistic regression for the lambda you have chosen at the previous step.
+
+```{r}
+coef(lasso_model)
+```
+
+
+
+#### Fifteen attributes are stiil in the model
+
+
+
+
+
+
+
+
+```{r}
+x_test<-testset[,2:31]
+
+
+predictions_train_ls <- predict(lasso_model, s = lambda_best, newx = as.matrix(x_test))
+
+
+predict_bin<-ifelse(predictions_train_ls<=.5,0,1)
+predict_bin_ls<-as.numeric(predict_bin)
+#factor to Numeric
+diagnosis_bin_ls<-ifelse(testset$diagnosis=="B",0,1)
+# Model accuracy
+mean(predict_bin_ls==diagnosis_bin_ls)
+
+#Confusion matrix
+table(predict_bin_ls,testset$diagnosis)
+
+```
+
+#### 7 instances are incorrectly classified. in whih Six are False positive and 1 are false negative. 
+
+
+
+
+
+
+
+```{r}
+library(pROC)
+roc_rose <- plot(roc(diagnosis_bin_l, predict_bin_l), print.auc = TRUE, col = "blue")
+
+roc_rose <- plot(roc(diagnosis_bin_ls, predict_bin_ls), print.auc = TRUE, col = "green", print.auc.y = .4, add = TRUE)
+
+
+
+```
+
+
+#### Logistic model has higher AUC Value hence Logistic model will be preferred.
+
+
