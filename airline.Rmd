@@ -1,0 +1,320 @@
+---
+title: "Airline Data Analysis"
+author: "Mohd Javed"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE,warning = FALSE,message = FALSE,dpi = 180,fig.width = 8,fig.height = 5)
+```
+
+
+
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+FlightDt<-read_excel("2019_airlinedataset.xlsx")
+#View(FlightDt)
+options(warn=-1)
+ClrDt <- FlightDt[,colSums(is.na(FlightDt))<nrow(FlightDt)]
+```
+
+##### Biggest airports
+
+
+```{r}
+
+
+##---DATA Processing----
+
+BigArpt<-c("ORD","DFW","MCO","JFK","DEN","MIA","EWR","BWI","FLL","DTW")
+#
+FiltrDt<-subset(ClrDt,Dest %in% BigArpt)
+
+
+#summary(FiltrDt)
+```
+
+
+
+```{r}
+
+#we are selecting only based on the data visualization, these are the data visualization. 
+finalOrgDt = select(FiltrDt, -c('Year','FlightDate','Reporting_Airline','DOT_ID_Reporting_Airline','IATA_CODE_Reporting_Airline','Tail_Number','Flight_Number_Reporting_Airline','OriginCityMarketID','OriginCityName','OriginState','OriginStateFips','OriginStateName','OriginWac','DestCityMarketID','DestCityName','DestState','DestStateFips','DestStateName','DestWac','TaxiOut','WheelsOff','WheelsOn','TaxiIn','ArrTimeBlk','DivAirportLandings',	'DivReachedDest',	'DivActualElapsedTime',	'DivArrDelay','DivDistance',	'Div1Airport',	'Div1AirportID'	,'Div1AirportSeqID','Div1WheelsOn','Div1TotalGTime','Div1LongestGTime','Div1WheelsOff','Div1TailNum'))
+#numerical feilds- correlation
+#find out the codes for summary, descriptive statistics 
+
+skimr::skim(finalOrgDt)
+```
+
+
+```{r}
+#we are dropping these variables because its identical
+finalOrgDt$OriginAirportSeqID<-NULL
+finalOrgDt$DestAirportSeqID<-NULL
+
+#Here we are taking our output variables 
+FltonTime_Dt<-finalOrgDt[!is.na(finalOrgDt$ArrDel15)&finalOrgDt$ArrDel15!=""&!is.na(finalOrgDt$DepDel15)&finalOrgDt$DepDel15!="",]
+#kitne the aur kitne ho gaye?
+nrow(finalOrgDt)
+nrow(FltonTime_Dt)
+```
+
+
+```{r}
+final_corr = select(FltonTime_Dt, c("CRSDepTime","DepTime","DepDelay","DepDelayMinutes","CRSArrTime","ArrTime","ArrDelay","CRSElapsedTime","ActualElapsedTime","AirTime","Distance","CarrierDelay","WeatherDelay","NASDelay","SecurityDelay"))
+final_corr<-na.omit(final_corr)
+library(corrplot)
+# correlation matrix
+corrplot(cor(final_corr))
+```
+
+```{r}
+FltonTime_Dt1<-FltonTime_Dt%>%
+filter(Origin==c("ORD","DFW","MCO","JFK","DEN","MIA","EWR","BWI","FLL","DTW"))
+ggplot(FltonTime_Dt1, aes(x=ArrDelay,y=CRSElapsedTime,color=Origin)) +
+  geom_point()+
+   labs (title = "Arrival delay vs CRSElapsedTime", x = "Arrival Delay", y = "CRSElapsedTime")+
+  theme_grey()
+```
+
+```{r}
+ggplot(FltonTime_Dt1, aes(x=ArrDelay,y=Distance,color=Origin)) +
+  geom_point(size=3)+
+   labs (title = "Arrival delay vs Distance", x = "Arrival Delay", y = "Distance")+
+  theme_grey()
+```
+
+
+
+```{r}
+ggplot(FltonTime_Dt1, aes(x=ArrDelay,y=Distance)) +
+  geom_point(size=3,aes(shape = factor(DayOfWeek)))+
+   labs (title = "Arrival delay vs Distance", x = "Arrival Delay", y = "Distance")+
+  theme_grey()
+
+```
+
+
+```{r}
+ggplot(FltonTime_Dt1, aes(DayOfWeek, ArrDelay)) +          geom_bar(position = "dodge", stat = "summary", fun = "mean")+
+   coord_flip()+
+   labs (title = "Average Arrival delay across DayOfWeek", x = "DayOfWeek", y = "Average Arrival delay")+
+  theme_classic()
+```
+
+
+```{r}
+ggplot(FltonTime_Dt1, aes(factor(Month), ArrDelay)) +          geom_bar(position = "dodge", stat = "summary", fun = "mean")+
+   coord_flip()+
+   labs (title = "Average Arrival delay across months", x = "Month", y = "Average Arrival delay")+
+  theme_classic()
+```
+
+
+
+```{r}
+#converting string to integer (why?)
+FltonTime_Dt$Distance<-as.integer(FltonTime_Dt$Distance)
+FltonTime_Dt$Cancelled<-as.integer(FltonTime_Dt$Cancelled)
+FltonTime_Dt$Diverted<-as.integer(FltonTime_Dt$Diverted)
+```
+
+
+```{r}
+#converting string to factors for modelling 
+FltonTime_Dt$ArrDel15<-as.factor(FltonTime_Dt$ArrDel15)
+FltonTime_Dt$DepDel15<-as.factor(FltonTime_Dt$DepDel15)
+FltonTime_Dt$DestAirportID<-as.factor(FltonTime_Dt$DestAirportID)
+FltonTime_Dt$OriginAirportID<-as.factor(FltonTime_Dt$OriginAirportID)
+FltonTime_Dt$DayOfWeek<-as.factor(FltonTime_Dt$DayOfWeek)
+FltonTime_Dt$Dest<-as.factor(FltonTime_Dt$Dest)
+FltonTime_Dt$Origin<-as.factor(FltonTime_Dt$Origin)
+FltonTime_Dt$DepTimeBlk<-as.factor(FltonTime_Dt$DepTimeBlk)
+```
+
+
+```{r}
+skimr::skim(FltonTime_Dt)
+
+FltonTime_Dt<-FltonTime_Dt[,c(1:21)]
+
+```
+
+```{r}
+nrow(finalOrgDt)
+nrow(FltonTime_Dt)
+#See how many delays vs. non-delays occur in the data - this will help us understand if we have enough data to build prediction.  
+tapply(FltonTime_Dt$ArrDel15,FltonTime_Dt$ArrDel15,length)
+```
+
+
+```{r}
+library(caret)
+set.seed(123)
+#Feature Selection
+featureSelectionCol<-c("ArrDel15","DayOfWeek","Dest","Origin")
+FltonTime_DtFiltered<-FltonTime_Dt[,featureSelectionCol]
+levels(FltonTime_DtFiltered$ArrDel15)<-c("No Delay","Delay")
+```
+
+
+
+### Arrival delay by dat of week
+
+```{r}
+
+ggplot(data=FltonTime_DtFiltered, aes(x=DayOfWeek, fill=ArrDel15)) +
+geom_bar() +
+   labs (title = "Arrival delay by Day Of Week", x = "Day of week", y = "Total Count")
+```
+
+
+### Arrival delay by destination
+
+```{r}
+ggplot(data=FltonTime_DtFiltered, aes(x=Dest, fill=ArrDel15)) +
+geom_bar() +
+   labs (title = "Arrival delay by destination", x = "Destination", y = "Total Count")
+```
+
+```{r}
+ggplot(data=FltonTime_DtFiltered, aes(x=Origin, fill=ArrDel15)) +
+geom_bar() +
+   labs (title = "Arrival delay by Origin", x = "Origin", y = "Total Count")
+```
+
+
+
+
+```{r}
+FltonTime_DtFiltered1<-FltonTime_DtFiltered%>%
+filter(Origin==c("ORD","DFW","MCO","JFK","DEN","MIA","EWR","BWI","FLL","DTW"))
+set.seed(7)
+#75 training 25 testing 
+Dt_Partisioning<-createDataPartition(y=FltonTime_DtFiltered1$ArrDel15, times = 1,p=0.75, list= FALSE)
+```
+
+
+```{r}
+#after spliting 
+TrainDt1<-FltonTime_DtFiltered1[Dt_Partisioning,]
+TestDt1<-FltonTime_DtFiltered1[-Dt_Partisioning,]
+
+```
+
+
+```{r}
+#checcking the spliting of data
+nrow(TrainDt1)/(nrow(TestDt1)+nrow(TrainDt1))
+nrow(TestDt1)/(nrow(TestDt1)+nrow(TrainDt1))
+#TestDt1$ArrDel15<-ifelse(TestDt1$ArrDel15==1,0,1)
+
+```
+
+
+```{r}
+
+
+
+#logistic regression model- put in last 
+logisticRegModel<-glm(ArrDel15~.,data=TrainDt1,family="binomial")
+logRegPrediction<-predict(logisticRegModel,TestDt1)
+summary(logisticRegModel)
+
+##############convert numeric to binary
+predicted_delay<-ifelse(logRegPrediction>0.5,1,0)
+table(predicted_delay,TestDt1$ArrDel15)
+
+#Accuracy
+mean(predicted_delay==TestDt1$ArrDel15)
+
+
+```
+
+
+```{r}
+#random forest- 1st model 
+library(randomForest)
+
+RandomForModel <- train(ArrDel15 ~ .,
+                 data = TrainDt1,
+                 method = 'rf',
+                 trControl = trainControl(method = "cv", number = 10),
+                 preproc = c("center", "scale"))
+
+
+RandomForPredict <- predict(RandomForModel, newdata = TestDt1)
+table(RandomForPredict,TestDt1$ArrDel15)
+
+#Accuracy
+mean(RandomForPredict==TestDt1$ArrDel15)
+```
+
+
+```{r}
+library(e1071)
+
+svmforModel <- svm(ArrDel15 ~ .,
+                   data = TrainDt1,
+                   type = 'C-classification',
+                   kernel = 'sigmoid',gamma=0.25,cost=1,coef.0=0)
+```
+
+
+```{r}
+svmforPredict <- predict(svmforModel,
+                         newdata = TestDt1)
+
+#ConfMtx3<-confusionMatrix(svmforPredict,reference = TestDt$ArrDel15)
+#ConfMtx3
+table(svmforPredict,TestDt1$ArrDel15)
+#Accuracy
+mean(svmforPredict==TestDt1$ArrDel15)
+
+```
+
+
+```{r}
+#install.packages("pROC")
+library(pROC)
+library(ggplot2)
+library(InformationValue)
+```
+
+
+```{r}
+TestDt1$ArrDel15<-as.numeric(TestDt1$ArrDel15)
+pred_svm<-as.numeric(svmforPredict)
+#plotROC(pred_svm,TestDt$ArrDel15)
+roc_score=roc(TestDt1$ArrDel15, pred_svm) #AUC score
+plot(roc_score ,main ="ROC curve -- Logistic Regression ")
+plot(svmforPredict)
+```
+
+
+```{r}
+KNNforModel<- train(ArrDel15~., data = TrainDt1, method = "knn",  metric="Accuracy",na.action = na.exclude)
+print(KNNforModel)
+
+KNNPredict<-predict(KNNforModel, newdata = TestDt1)
+confusionMatrix(KNNPredict, TestDt1$ArrDel15)
+table(KNNPredict, TestDt1$ArrDel15)
+#Accuracy
+mean(KNNPredict==TestDt1$ArrDel15)
+```
+
+
+```{r}
+#-----CHECK HOW CAN YOU INCREASE ACCURACY OF MODELS-------
+# adding more data records
+# adding more relevant features
+# trying more Classification algorithm
+# 
+
+```
+
