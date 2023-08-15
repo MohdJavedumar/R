@@ -1,0 +1,10 @@
+readxl
+dplyr
+ggplot2
+lattice
+caret
+randomForest
+e1071
+pROC
+InformationValue
+corrplot
